@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import PropertySummary from "@/components/PropertySummary";
@@ -9,6 +9,7 @@ import EmailPanel from "@/components/EmailPanel";
 import RiskPanel from "@/components/RiskPanel";
 import ChatPanel from "@/components/ChatPanel";
 import { getPropertyStatus } from "../lib/api";
+import { parseAgentResponse } from "@/lib/parseAgentResponse";
 import type { PropertyStatus } from "@/types/property";
 
 export default function Home() {
@@ -64,6 +65,12 @@ export default function Home() {
 
   const handleRefresh = () => handleSearch(address);
 
+  const parsedResponse = useMemo(() => {
+    if (!propertyStatus) return null;
+
+    return parseAgentResponse([propertyStatus.box, propertyStatus.gmail, propertyStatus.fub].filter(Boolean).join("\n\n"));
+  }, [propertyStatus]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff_0%,_#e2e8f0_45%,_#f8fafc_100%)] text-slate-900">
       <div className="mx-auto max-w-7xl p-6 md:p-8">
@@ -109,12 +116,12 @@ export default function Home() {
 
         <div className="mt-6 grid grid-cols-12 gap-6">
           <div className="col-span-12 lg:col-span-8 space-y-6">
-            <PropertySummary propertyStatus={propertyStatus} isLoading={isSearching} />
+            <PropertySummary propertyStatus={propertyStatus} parsedResponse={parsedResponse} isLoading={isSearching} />
 
             <div className="grid gap-6 md:grid-cols-2">
-              <DocumentsPanel propertyStatus={propertyStatus} isLoading={isSearching} />
-              <EmailPanel propertyStatus={propertyStatus} isLoading={isSearching} />
-              <RiskPanel propertyStatus={propertyStatus} isLoading={isSearching} />
+              <DocumentsPanel propertyStatus={propertyStatus} parsedResponse={parsedResponse} isLoading={isSearching} />
+              <EmailPanel propertyStatus={propertyStatus} parsedResponse={parsedResponse} isLoading={isSearching} />
+              <RiskPanel propertyStatus={propertyStatus} parsedResponse={parsedResponse} isLoading={isSearching} />
             </div>
           </div>
 
