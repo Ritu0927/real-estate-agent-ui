@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import PropertySummary from "@/components/PropertySummary";
@@ -18,17 +18,7 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("recent-property-searches");
-    if (saved) {
-      try {
-        setSearchHistory(JSON.parse(saved));
-      } catch {
-        window.localStorage.removeItem("recent-property-searches");
-      }
-    }
-  }, []);
+  const restoredSearchRef = useRef(false);
 
   const saveSearchHistory = (value: string) => {
     const trimmed = value.trim();
@@ -37,6 +27,7 @@ export default function Home() {
     setSearchHistory((prev) => {
       const next = [trimmed, ...prev.filter((item) => item.toLowerCase() !== trimmed.toLowerCase())].slice(0, 5);
       window.localStorage.setItem("recent-property-searches", JSON.stringify(next));
+      window.localStorage.setItem("active-property-search", trimmed);
       return next;
     });
   };
@@ -64,6 +55,25 @@ export default function Home() {
   };
 
   const handleRefresh = () => handleSearch(address);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("recent-property-searches");
+    if (saved) {
+      try {
+        setSearchHistory(JSON.parse(saved));
+      } catch {
+        window.localStorage.removeItem("recent-property-searches");
+      }
+    }
+
+    const activeSearch = window.localStorage.getItem("active-property-search");
+
+    if (!restoredSearchRef.current && activeSearch && !propertyStatus) {
+      restoredSearchRef.current = true;
+      setAddress(activeSearch);
+      void handleSearch(activeSearch);
+    }
+  }, [propertyStatus]);
 
   const parsedResponse = useMemo(() => {
     if (!propertyStatus) return null;
