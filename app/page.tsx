@@ -126,7 +126,12 @@ export default function Home() {
           </div>
 
           <div className="col-span-12 lg:col-span-4">
-            <ChatPanel />
+            <ChatPanel
+              address={address}
+              propertyStatus={propertyStatus}
+              parsedResponse={parsedResponse}
+              isLoading={isSearching}
+            />
           </div>
         </div>
       </div>
