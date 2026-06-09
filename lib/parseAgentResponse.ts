@@ -25,43 +25,62 @@ export interface ParsedAgentResponse {
 const SECTION_ALIASES: Record<string, string> = {
   summary: "What’s Happening Now",
   "key findings": "What’s Happening Now",
+  "current activity": "What’s Happening Now",
+  "what’s happening now": "What’s Happening Now",
+  "whats happening now": "What’s Happening Now",
+  "what’s done": "What’s Done",
+  "whats done": "What’s Done",
   "open items": "What’s Remaining",
   "pending responses": "What’s Remaining",
   "missing documents": "What’s Remaining",
+  "what’s remaining": "What’s Remaining",
+  "whats remaining": "What’s Remaining",
   risks: "Risks / Red Flags",
+  "risks / red flags": "Risks / Red Flags",
   "recommended next steps": "Recommended Next Steps",
   sources: "Sources Reviewed",
+  "sources reviewed": "Sources Reviewed",
   documents: "Documents Found",
+  "documents available": "Documents Found",
   "email activity": "Email Activity",
   "crm": "CRM / Follow Up Boss Activity",
+  "crm / follow up boss activity": "CRM / Follow Up Boss Activity",
   "follow up boss": "CRM / Follow Up Boss Activity",
 };
 
 function normalizeHeading(value: string): string {
   const cleaned = value
     .replace(/^#{1,6}\s*/, "")
-    .replace(/[:*-]\s*$/, "")
-    .trim();
+    .replace(/[>*_`]/g, "")
+    .replace(/[:\-–—]\s*$/, "")
+    .trim()
+    .toLowerCase();
 
-  const lowered = cleaned.toLowerCase();
-  return SECTION_ALIASES[lowered] || cleaned || "General Notes";
+  return SECTION_ALIASES[cleaned] || cleaned || "general notes";
 }
 
 function cleanBullet(line: string): string {
   return line
     .replace(/^[-*•]\s*/, "")
     .replace(/^\d+[.)]\s*/, "")
+    .replace(/[>*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function extractMetadata(text: string) {
   const metadata: Record<string, string> = {};
-  const patterns: Array<[RegExp, keyof Record<string, string>]> = [
+  const patterns: Array<[RegExp, string]> = [
+    [/\baddress\s*[:\-]\s*(.+)/i, "address"],
+    [/\blisting status\s*[:\-]\s*(.+)/i, "overallStatus"],
     [/overall status\s*[:\-]\s*(.+)/i, "overallStatus"],
     [/transaction stage\s*[:\-]\s*(.+)/i, "transactionStage"],
+    [/transaction status\s*[:\-]\s*(.+)/i, "transactionStage"],
     [/risk level\s*[:\-]\s*(.+)/i, "riskLevel"],
     [/last updated\s*[:\-]\s*(.+)/i, "lastUpdated"],
+    [/seller\s*[:\-]\s*(.+)/i, "seller"],
+    [/listing agent\s*[:\-]\s*(.+)/i, "listingAgent"],
+    [/current buyers\s*[:\-]\s*(.+)/i, "currentBuyers"],
   ];
 
   for (const [regex, key] of patterns) {
@@ -106,18 +125,19 @@ export function parseAgentResponse(text: string): ParsedAgentResponse {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const headingMatch = line.match(/^(#{1,6}\s+.+|SUMMARY|KEY FINDINGS|OPEN ITEMS|PENDING RESPONSES|MISSING DOCUMENTS|RISKS|RECOMMENDED NEXT STEPS|SOURCES|DOCUMENTS|EMAIL ACTIVITY|CRM|FOLLOW UP BOSS)/i);
+    const headingCandidate = cleanBullet(line);
+    const headingMatch = headingCandidate.match(/^(#{1,6}\s+.+|summary|key findings|current activity|what’s happening now|whats happening now|what’s done|whats done|open items|pending responses|missing documents|what’s remaining|whats remaining|risks|risks \/ red flags|recommended next steps|sources|sources reviewed|documents|documents available|email activity|crm|crm \/ follow up boss activity|follow up boss)/i);
     if (headingMatch) {
-      currentSection = normalizeHeading(line);
+      currentSection = normalizeHeading(headingCandidate);
       continue;
     }
 
-    const bullet = cleanBullet(line);
-    if (bullet) {
-      const list = sections.get(currentSection) || [];
-      list.push(bullet);
-      sections.set(currentSection, list);
-    }
+    const content = cleanBullet(line);
+    if (!content) continue;
+
+    const list = sections.get(currentSection) || [];
+    list.push(content);
+    sections.set(currentSection, list);
   }
 
   if (sections.size === 0) {
@@ -145,7 +165,7 @@ export function parseAgentResponse(text: string): ParsedAgentResponse {
   }
 
   return {
-    address: metadata.overallStatus ? "Property review" : "Property review",
+    address: metadata.address || "Property review",
     overallStatus: metadata.overallStatus || "Status not specified",
     transactionStage: metadata.transactionStage || "Stage not specified",
     riskLevel: metadata.riskLevel || "Risk not specified",

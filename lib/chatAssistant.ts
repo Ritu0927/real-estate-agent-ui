@@ -42,6 +42,11 @@ function extractSearchTerms(question: string) {
     .filter((term) => term.length > 3 && !["what", "when", "where", "name", "know", "want", "with", "from", "this", "that", "about", "please", "show", "tell"].includes(term));
 }
 
+function extractAddressCandidate(question: string) {
+  const match = question.match(/\b\d{3,5}\s+[a-z0-9][a-z0-9\s.,/-]{3,}/i);
+  return match?.[0]?.trim() || "";
+}
+
 export function answerPropertyQuestion(question: string, context: ChatContext): string {
   const normalized = question.toLowerCase().trim();
   const address = context.address || context.propertyStatus?.address || "this property";
@@ -49,9 +54,14 @@ export function answerPropertyQuestion(question: string, context: ChatContext): 
   const sourceText = buildSourceText(context);
   const extractedNames = extractNames(question);
   const searchTerms = extractSearchTerms(question);
+  const addressCandidate = extractAddressCandidate(question);
 
   if (!context.propertyStatus) {
     return "Search for a property first, then I can answer questions about the address, Box, Gmail, Google Drive, and Follow Up Boss integrations.";
+  }
+
+  if (addressCandidate && !address.toLowerCase().includes(addressCandidate.toLowerCase())) {
+    return "__ADDRESS_MISMATCH__";
   }
 
   if (/\b(address|where|property)\b/.test(normalized) || extractedNames.some((name) => sourceText.toLowerCase().includes(name.toLowerCase()))) {

@@ -21,6 +21,7 @@ type ChatMessage = {
 export default function ChatPanel({ address, propertyStatus, parsedResponse, isLoading }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const hasPropertyContext = Boolean(propertyStatus);
 
   const starterPrompt = useMemo(
@@ -40,6 +41,14 @@ export default function ChatPanel({ address, propertyStatus, parsedResponse, isL
     const assistantReply = !hasPropertyContext && /\b(address|property|box|gmail|drive|follow up boss|fub|owner|name|search)\b/i.test(text)
       ? "Search a property first so I can answer from the live Box, Gmail, Google Drive, and Follow Up Boss data. Once a property is loaded, ask the same question again and I’ll answer from the case tracker."
       : answerPropertyQuestion(text, { address, propertyStatus, parsedResponse });
+
+    if (assistantReply === "__ADDRESS_MISMATCH__") {
+      setNotice("That question references a different property than the one currently loaded. Search the correct address first, then ask again.");
+      setDraft("");
+      return;
+    }
+
+    setNotice(null);
 
     setMessages((prev) => [
       ...prev,
@@ -67,6 +76,11 @@ export default function ChatPanel({ address, propertyStatus, parsedResponse, isL
 
       <div className="mt-4 flex h-[520px] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-inner">
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {notice ? (
+            <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              {notice}
+            </article>
+          ) : null}
           {!hasPropertyContext ? (
             <article className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4 text-sm text-slate-700">
               <p className="font-semibold text-slate-900">No property loaded yet</p>
