@@ -58,20 +58,25 @@ export default function Home() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem("recent-property-searches");
+    let recentSearches: string[] = [];
+
     if (saved) {
       try {
-        setSearchHistory(JSON.parse(saved));
+        recentSearches = JSON.parse(saved);
+        setSearchHistory(recentSearches);
       } catch {
         window.localStorage.removeItem("recent-property-searches");
       }
     }
 
     const activeSearch = window.localStorage.getItem("active-property-search");
+    const fallbackSearch = recentSearches[0];
+    const searchToRestore = activeSearch || fallbackSearch;
 
-    if (!restoredSearchRef.current && activeSearch && !propertyStatus) {
+    if (!restoredSearchRef.current && searchToRestore && !propertyStatus) {
       restoredSearchRef.current = true;
-      setAddress(activeSearch);
-      void handleSearch(activeSearch);
+      setAddress(searchToRestore);
+      void handleSearch(searchToRestore);
     }
   }, [propertyStatus]);
 

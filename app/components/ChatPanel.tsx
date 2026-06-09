@@ -21,6 +21,7 @@ type ChatMessage = {
 export default function ChatPanel({ address, propertyStatus, parsedResponse, isLoading }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const hasPropertyContext = Boolean(propertyStatus);
 
   const starterPrompt = useMemo(
     () => getStarterPrompt({ address, propertyStatus, parsedResponse }),
@@ -36,12 +37,16 @@ export default function ChatPanel({ address, propertyStatus, parsedResponse, isL
 
     if (!text) return;
 
+    const assistantReply = !hasPropertyContext && /\b(address|property|box|gmail|drive|follow up boss|fub|owner|name|search)\b/i.test(text)
+      ? "Search a property first so I can answer from the live Box, Gmail, Google Drive, and Follow Up Boss data. Once a property is loaded, ask the same question again and I’ll answer from the case tracker."
+      : answerPropertyQuestion(text, { address, propertyStatus, parsedResponse });
+
     setMessages((prev) => [
       ...prev,
       { role: "user", text },
       {
         role: "assistant",
-        text: answerPropertyQuestion(text, { address, propertyStatus, parsedResponse }),
+        text: assistantReply,
       },
     ]);
     setDraft("");
@@ -62,6 +67,12 @@ export default function ChatPanel({ address, propertyStatus, parsedResponse, isL
 
       <div className="mt-4 flex h-[520px] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-inner">
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {!hasPropertyContext ? (
+            <article className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">No property loaded yet</p>
+              <p className="mt-1">Use the search bar on the left to load an address. Then ask about Box, Gmail, Drive, Follow Up Boss, risks, or next steps.</p>
+            </article>
+          ) : null}
           {visibleMessages.map((message, index) => (
             <article
               key={`${message.role}-${index}`}
