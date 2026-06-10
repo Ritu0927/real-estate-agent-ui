@@ -1,6 +1,7 @@
 export interface PropertyStatus {
   address: string;
-  box: string;
-  gmail: string;
-  fub: string;
+  answer: string;
+  box?: string;
+  gmail?: string;
+  fub?: string;
 }

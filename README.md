@@ -2,6 +2,31 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Create a local environment file with the Bedrock Agent API Gateway URLs:
+
+```bash
+cp .env.example .env.local
+```
+
+Then update `.env.local`:
+
+```bash
+PROPERTY_STATUS_API_URL=https://your-api-gateway-url/property-status
+CHAT_API_URL=https://your-api-gateway-url/chat
+```
+
+`PROPERTY_STATUS_API_URL` should return either the dashboard shape:
+
+```json
+{ "address": "...", "box": "...", "gmail": "...", "fub": "...", "answer": "..." }
+```
+
+or the Bedrock Agent shape:
+
+```json
+{ "answer": "## SUMMARY\n..." }
+```
+
 First, run the development server:
 
 ```bash
