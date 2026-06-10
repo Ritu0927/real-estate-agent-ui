@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { PropertyStatus } from "@/types/property";
 
+export const maxDuration = 180;
+
 const CHAT_API_URL = process.env.CHAT_API_URL || process.env.BEDROCK_AGENT_API_URL;
 const PROPERTY_STATUS_API_URL = process.env.PROPERTY_STATUS_API_URL;
 const REQUEST_TIMEOUT_MS = 180000;

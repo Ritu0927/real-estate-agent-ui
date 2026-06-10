@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { PropertyStatus } from "@/types/property";
 
+export const maxDuration = 180;
+
 const API_URL =
   process.env.PROPERTY_STATUS_API_URL ||
   "https://dsaaend04f.execute-api.us-east-1.amazonaws.com/property-status";
