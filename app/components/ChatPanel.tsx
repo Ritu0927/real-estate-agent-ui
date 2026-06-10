@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Bot, Loader2, Send, Sparkles, User2 } from "lucide-react";
 import type { ParsedAgentResponse } from "@/lib/parseAgentResponse";
 import { askBedrockAgent } from "@/lib/api";
+import { answerFromLoadedReport } from "@/lib/chatAssistant";
 import type { PropertyStatus } from "@/types/property";
 
 interface ChatPanelProps {
@@ -57,6 +58,13 @@ export default function ChatPanel({ address, propertyStatus, parsedResponse, isL
             : "Load a property report first, then I can answer questions about that transaction using the Bedrock report context.",
         },
       ]);
+      return;
+    }
+
+    const localAnswer = answerFromLoadedReport(text, { address, propertyStatus, parsedResponse });
+
+    if (localAnswer) {
+      setMessages((prev) => [...prev, { role: "assistant", text: localAnswer }]);
       return;
     }
 

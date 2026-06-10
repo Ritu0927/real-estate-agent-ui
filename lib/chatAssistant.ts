@@ -7,145 +7,120 @@ export interface ChatContext {
   parsedResponse: ParsedAgentResponse | null;
 }
 
-function listToSentence(items: string[], fallback = "No confirmed data found yet") {
-  if (!items.length) return fallback;
-  return items.join(" ");
+const NO_DATA = "No confirmed data found.";
+
+function take(items: string[] | undefined, count = 5) {
+  return (items || []).filter(Boolean).slice(0, count);
 }
 
-function buildSourceText(context: ChatContext) {
-  return [context.propertyStatus?.box || "", context.propertyStatus?.gmail || "", context.propertyStatus?.fub || ""].join("\n\n");
+function bullets(items: string[] | undefined, fallback = NO_DATA) {
+  const visibleItems = take(items);
+
+  if (!visibleItems.length) return fallback;
+
+  return visibleItems.map((item) => `- ${item}`).join("\n");
 }
 
-function findMatchingLines(sourceText: string, terms: string[]) {
-  const loweredTerms = terms.map((term) => term.toLowerCase()).filter(Boolean);
-
-  if (!loweredTerms.length) return [];
-
-  return sourceText
+function matchingReportLines(report: string, patterns: RegExp[], limit = 6) {
+  return report
     .split(/\n+/)
-    .map((line) => line.trim())
+    .map((line) => line.replace(/^[-*•\d.)\s]+/, "").replace(/[>*_`]/g, "").trim())
     .filter(Boolean)
-    .filter((line) => loweredTerms.some((term) => line.toLowerCase().includes(term)))
-    .slice(0, 4);
+    .filter((line) => patterns.some((pattern) => pattern.test(line)))
+    .slice(0, limit);
 }
 
-function extractNames(question: string) {
-  const capitalizedMatches = question.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || [];
-  return capitalizedMatches.map((value) => value.trim());
-}
-
-function extractSearchTerms(question: string) {
-  return question
-    .toLowerCase()
-    .split(/\s+/)
-    .map((term) => term.replace(/[^a-z0-9]/g, "").trim())
-    .filter((term) => term.length > 3 && !["what", "when", "where", "name", "know", "want", "with", "from", "this", "that", "about", "please", "show", "tell"].includes(term));
-}
-
-function extractAddressCandidate(question: string) {
-  const match = question.match(/\b\d{3,5}\s+[a-z0-9][a-z0-9\s.,/-]{3,}/i);
-  return match?.[0]?.trim() || "";
-}
-
-export function answerPropertyQuestion(question: string, context: ChatContext): string {
-  const normalized = question.toLowerCase().trim();
-  const address = context.address || context.propertyStatus?.address || "this property";
+function answerContingencies(context: ChatContext) {
   const parsed = context.parsedResponse;
-  const sourceText = buildSourceText(context);
-  const extractedNames = extractNames(question);
-  const searchTerms = extractSearchTerms(question);
-  const addressCandidate = extractAddressCandidate(question);
+  const rawText = context.propertyStatus?.answer || parsed?.rawText || "";
+  const contingencyLines = matchingReportLines(rawText, [
+    /\bcontingenc/i,
+    /\binspection/i,
+    /\bappraisal/i,
+    /\bloan\b/i,
+    /\bdisclosure/i,
+    /\bescrow|title/i,
+  ]);
 
-  if (!context.propertyStatus) {
-    return "Search for a property first, then I can answer questions about the address, Box, Gmail, Google Drive, and Follow Up Boss integrations.";
-  }
+  const confirmed = contingencyLines.filter((line) => !/\b(no |not |unable|unknown|missing|cannot|without|no confirmed)/i.test(line));
+  const unconfirmed = [
+    ...take(parsed?.reportSections.openItems.filter((item) => /\bcontingenc|inspection|appraisal|loan|escrow|title|deadline/i.test(item)), 4),
+    ...take(parsed?.reportSections.missingDocuments.filter((item) => /\bcontingenc|removal|purchase agreement|escrow|disclosure|tds|spq|nhd/i.test(item)), 4),
+    ...take(parsed?.reportSections.risks.filter((item) => /\bcontingenc|inspection|timeline|escrow|contract/i.test(item)), 4),
+  ];
+  const nextSteps = take(parsed?.reportSections.recommendedNextSteps.map((step) => step.label).filter((item) => /\bcontingenc|inspection|escrow|purchase|timeline|deadline|disclosure/i.test(item)), 4);
 
-  if (addressCandidate && !address.toLowerCase().includes(addressCandidate.toLowerCase())) {
-    return "__ADDRESS_MISMATCH__";
-  }
-
-  if (/\b(address|where|property)\b/.test(normalized) || extractedNames.some((name) => sourceText.toLowerCase().includes(name.toLowerCase()))) {
-    const matches = findMatchingLines(sourceText, [address, ...extractedNames, ...normalized.split(/\s+/).filter((term) => term.length > 3)]);
-
-    if (matches.length) {
-      return `I found matching source details for ${address}: ${matches.join(" ")}`;
-    }
-
-    return `The loaded property is ${address}. I do not see a confirmed source line for the name or address in the current response, so I will not invent one.`;
-  }
-
-  if (/\b(name|owner|contact|who is it|who owns|buyer|seller)\b/.test(normalized)) {
-    const matches = findMatchingLines(sourceText, ["owned by", "owner", "contact", "agent", "buyer", "seller"]);
-
-    if (matches.length) {
-      return `Here is the confirmed name-related source detail for ${address}: ${matches.join(" ")}`;
-    }
-
-    return "I do not see a confirmed owner or contact name in the current response, so I will not invent one. If the source data includes a name later, I can surface it here.";
-  }
-
-  if (/\b(all integrations|integration|connected systems|sources|what can you see)\b/.test(normalized)) {
-    return `I can review Box, Gmail, Google Drive, and Follow Up Boss for ${address}. Current source list: ${listToSentence(parsed?.sources || ["Box", "Gmail", "Google Drive", "Follow Up Boss"])}.`;
-  }
-
-  if (/\b(box|document|file|drive)\b/.test(normalized)) {
-    const docs = parsed?.documents?.length ? parsed.documents.map((doc) => `${doc.source}: ${doc.name}${doc.date ? ` (${doc.date})` : ""}`) : [];
-    return docs.length
-      ? `For ${address}, here are the top document findings: ${docs.slice(0, 3).join("; ")}.`
-      : "No confirmed data found yet for Box or Drive documents.";
-  }
-
-  if (/\b(summary|key findings|open items|pending responses|missing documents|sources|raw sources)\b/.test(normalized)) {
-    const snippets = findMatchingLines(sourceText, normalized.split(/\s+/).filter((term) => term.length > 3));
-
-    return snippets.length
-      ? `Here are the matching source details for ${address}: ${snippets.join(" ")}`
-      : `No confirmed data found yet for that source detail on ${address}.`;
-  }
-
-  if (searchTerms.length) {
-    const snippets = findMatchingLines(sourceText, [...searchTerms, ...extractedNames]);
-
-    if (snippets.length) {
-      return `I found matching source details for ${address}: ${snippets.join(" ")}`;
-    }
-  }
-
-  if (/\b(email|gmail|message|reply|response)\b/.test(normalized)) {
-    const emailDetails = parsed?.emails?.length ? parsed.emails : [];
-    return emailDetails.length
-      ? `Gmail activity for ${address}: ${emailDetails.join(" ")}`
-      : "No confirmed data found yet for Gmail activity.";
-  }
-
-  if (/\b(fub|follow up boss|crm|agent|lead|stage)\b/.test(normalized)) {
-    const crmDetails = parsed?.crm?.length ? parsed.crm : [];
-    return crmDetails.length
-      ? `Follow Up Boss activity for ${address}: ${crmDetails.join(" ")}`
-      : "No confirmed data found yet for Follow Up Boss activity.";
-  }
-
-  if (/\b(next steps|what should i do|what now|action|remaining|pending|open items)\b/.test(normalized)) {
-    const steps = parsed?.nextSteps?.length ? parsed.nextSteps : parsed?.remaining || [];
-    return steps.length
-      ? `Recommended next steps for ${address}: ${steps.join(" ")}`
-      : "No confirmed data found yet for next steps or open items.";
-  }
-
-  if (/\b(risk|red flag|inspection|title|escrow|missing)\b/.test(normalized)) {
-    const risks = parsed?.risks?.length ? parsed.risks : [];
-    return risks.length
-      ? `Risk review for ${address}: ${risks.join(" ")}`
-      : "No confirmed data found yet for risks or red flags.";
-  }
-
-  return `I can answer questions about the loaded property at ${address}, including Box documents, Gmail activity, Google Drive references, Follow Up Boss CRM activity, risks, remaining items, and next steps. Ask me something specific like “What Box files were found?”, “What is the Gmail status?”, or “What are the next steps?”`;
+  return [
+    `For ${context.propertyStatus?.address || context.address || "this property"}, I cannot confirm the exact contingency deadlines from the loaded report.`,
+    "",
+    "Confirmed or likely contingency-related items:",
+    bullets(confirmed.length ? confirmed : contingencyLines),
+    "",
+    "Missing or unconfirmed:",
+    bullets(unconfirmed),
+    "",
+    "Recommended next step:",
+    bullets(nextSteps.length ? nextSteps : ["Obtain the fully executed purchase agreement and transaction timeline, then confirm inspection, appraisal, loan, disclosure, and escrow/title deadlines."]),
+  ].join("\n");
 }
 
-export function getStarterPrompt(context: ChatContext): string {
-  if (!context.propertyStatus) {
-    return "Search for a property first, then ask me about Box, Gmail, Drive, FUB, risks, next steps, or the address.";
+function sectionAnswer(title: string, items: string[] | undefined) {
+  return `${title}:\n${bullets(items)}`;
+}
+
+export function answerFromLoadedReport(question: string, context: ChatContext): string | null {
+  if (!context.propertyStatus || !context.parsedResponse) return null;
+
+  const normalized = question.toLowerCase();
+  const parsed = context.parsedResponse;
+
+  if (/\bcontingenc|contingencies|deadline|removal|inspection contingency|loan contingency|appraisal contingency\b/i.test(normalized)) {
+    return answerContingencies(context);
   }
 
-  return `Loaded property: ${context.address || context.propertyStatus.address}. Ask me about Box, Gmail, Google Drive, Follow Up Boss, risks, next steps, or any specific source.`;
+  if (/\bmissing documents?|docs? missing|what.*missing\b/i.test(normalized)) {
+    return sectionAnswer("Missing documents", parsed.reportSections.missingDocuments.length ? parsed.reportSections.missingDocuments : parsed.missingDocuments);
+  }
+
+  if (/\brisks?|red flags?|concerns?\b/i.test(normalized)) {
+    return sectionAnswer("Risks", parsed.reportSections.risks.length ? parsed.reportSections.risks : parsed.risks);
+  }
+
+  if (/\bopen items?|pending|remaining|to do\b/i.test(normalized)) {
+    return sectionAnswer("Open items", parsed.reportSections.openItems.length ? parsed.reportSections.openItems : parsed.remaining);
+  }
+
+  if (/\bnext steps?|what should|what now|action\b/i.test(normalized)) {
+    const actions = parsed.reportSections.recommendedNextSteps.length ? parsed.reportSections.recommendedNextSteps : parsed.recommendedNextSteps;
+    return sectionAnswer("Recommended next steps", actions.map((action) => `${action.urgency}: ${action.label}`));
+  }
+
+  if (/\bsummary|status|where.*stand|what.*happening\b/i.test(normalized)) {
+    return [
+      `Status for ${context.propertyStatus.address}:`,
+      `- Stage: ${parsed.stage || parsed.transactionStatus || NO_DATA}`,
+      `- Seller: ${parsed.sellerClient || NO_DATA}`,
+      `- Buyer: ${parsed.buyer || NO_DATA}`,
+      `- Risk score: ${parsed.riskScore}`,
+      "",
+      "Summary:",
+      bullets(parsed.reportSections.summary.length ? parsed.reportSections.summary : parsed.activity, "No summary was confirmed in the loaded report."),
+    ].join("\n");
+  }
+
+  if (/\bsources?|reviewed|box|gmail|drive|follow up boss|fub\b/i.test(normalized)) {
+    return sectionAnswer("Sources reviewed", parsed.reportSections.sources.length ? parsed.reportSections.sources : parsed.sources);
+  }
+
+  const terms = normalized
+    .split(/\s+/)
+    .map((term) => term.replace(/[^a-z0-9]/g, ""))
+    .filter((term) => term.length > 4);
+  const matches = matchingReportLines(context.propertyStatus.answer, terms.map((term) => new RegExp(term, "i")), 5);
+
+  if (matches.length) {
+    return `I found these matching details in the loaded report:\n${bullets(matches)}`;
+  }
+
+  return null;
 }
