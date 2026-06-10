@@ -5,6 +5,7 @@ export const maxDuration = 180;
 
 const CHAT_API_URL = process.env.CHAT_API_URL || process.env.BEDROCK_AGENT_API_URL;
 const PROPERTY_STATUS_API_URL = process.env.PROPERTY_STATUS_API_URL;
+const DEFAULT_LAMBDA_URL = "https://laer5u45nxx772b23ly22bgtii0erapo.lambda-url.us-east-1.on.aws/";
 const REQUEST_TIMEOUT_MS = 180000;
 
 function unwrapPayload(payload: unknown) {
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
   }
 
   const propertyContext = buildPropertyContext(propertyStatus);
-  const backendUrl = CHAT_API_URL || PROPERTY_STATUS_API_URL;
+  const backendUrl = CHAT_API_URL || PROPERTY_STATUS_API_URL || DEFAULT_LAMBDA_URL;
   const prompt = propertyContext
     ? `Use the loaded property context when it is relevant. Do not invent facts that are not in the context.\n\n${propertyContext}\n\nUser question: ${question}`
     : question;

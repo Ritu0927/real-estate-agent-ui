@@ -5,7 +5,7 @@ export const maxDuration = 180;
 
 const API_URL =
   process.env.PROPERTY_STATUS_API_URL ||
-  "https://dsaaend04f.execute-api.us-east-1.amazonaws.com/property-status";
+  "https://laer5u45nxx772b23ly22bgtii0erapo.lambda-url.us-east-1.on.aws/";
 const REQUEST_TIMEOUT_MS = 180000;
 const RETRY_AFTER_MS = 15000;
 
